@@ -48,6 +48,7 @@ import {
 import { DealCard } from './components/DealCard';
 import { IncentiveCalculator } from './components/IncentiveCalculator';
 import { AddDealModal } from './components/AddDealModal';
+import { SchemaModal } from './components/SchemaModal';
 import { analyzePipeline } from './services/geminiService';
 import { api } from './services/api';
 import { supabase, isSupabaseConfigured } from './services/supabase';
@@ -64,6 +65,7 @@ const App = () => {
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSchemaModalOpen, setIsSchemaModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   
   // Pipeline Filters
@@ -451,15 +453,14 @@ const App = () => {
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <TrendingUp className="text-blue-500" /> SalesFlow
           </h1>
-          {isSupabaseConfigured ? (
-             <span className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
-               <Database size={10} /> Connected
-             </span>
-          ) : (
-             <span className="text-[10px] text-amber-400 font-mono mt-1 flex items-center gap-1">
-               <Database size={10} /> Demo Mode
-             </span>
-          )}
+          <button 
+             onClick={() => setIsSchemaModalOpen(true)}
+             className={`text-[10px] font-mono mt-1 flex items-center gap-1 hover:underline cursor-pointer ${isSupabaseConfigured ? 'text-emerald-400' : 'text-amber-400'}`}
+             title="Click to view Database Setup"
+          >
+             <Database size={10} /> 
+             {isSupabaseConfigured ? "Connected (View Setup)" : "Demo Mode (Click for Setup)"}
+          </button>
         </div>
         
         <nav className="flex-1 px-4 space-y-2">
@@ -1053,6 +1054,12 @@ const App = () => {
         onDelete={handleDeleteDeal}
         reps={reps}
         initialData={editingDeal}
+      />
+
+      {/* Database Schema Setup Modal */}
+      <SchemaModal 
+        isOpen={isSchemaModalOpen} 
+        onClose={() => setIsSchemaModalOpen(false)} 
       />
     </div>
   );
