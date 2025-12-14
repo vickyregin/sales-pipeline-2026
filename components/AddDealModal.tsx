@@ -5,7 +5,7 @@ import { DealStage, SalesRep, Deal, DealCategory } from '../types';
 interface AddDealModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (deal: Omit<Deal, 'id' | 'lastUpdated' | 'closeDate'>) => void;
+  onSave: (deal: Omit<Deal, 'id' | 'lastUpdated' | 'closeDate'>, stageDate?: string) => void;
   onDelete?: (dealId: string) => void;
   reps: SalesRep[];
   initialData?: Deal | null;
@@ -19,8 +19,11 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
     stage: DealStage.LEAD,
     category: DealCategory.SOFTWARE,
     assignedRepId: reps[0]?.id || '',
-    probability: 20
+    probability: 20,
+    notes: ''
   });
+
+  const [stageDate, setStageDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Populate form when initialData changes (Edit Mode) or reset (Add Mode)
   useEffect(() => {
@@ -33,8 +36,18 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
           stage: initialData.stage,
           category: initialData.category,
           assignedRepId: initialData.assignedRepId,
-          probability: initialData.probability
+          probability: initialData.probability,
+          notes: initialData.notes || ''
         });
+        
+        // Extract date from history or default to today
+        const historyDate = initialData.stageHistory?.[initialData.stage];
+        if (historyDate) {
+          // Format ISO string to YYYY-MM-DD for input[type="date"]
+          setStageDate(historyDate.split('T')[0]);
+        } else {
+          setStageDate(new Date().toISOString().split('T')[0]);
+        }
       } else {
         setFormData({
           customerName: '',
@@ -43,8 +56,10 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
           stage: DealStage.LEAD,
           category: DealCategory.SOFTWARE,
           assignedRepId: reps[0]?.id || '',
-          probability: 20
+          probability: 20,
+          notes: ''
         });
+        setStageDate(new Date().toISOString().split('T')[0]);
       }
     }
   }, [isOpen, initialData, reps]);
@@ -56,7 +71,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
     onSave({
       ...formData,
       value: Number(formData.value)
-    });
+    }, stageDate);
     onClose();
   };
 
@@ -81,7 +96,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
           </button>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[85vh] overflow-y-auto">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Customer Name</label>
             <input 
@@ -133,6 +148,18 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
              </div>
           </div>
 
+          <div>
+             <label className="block text-sm font-medium text-slate-700 mb-1">Stage Date</label>
+             <input 
+               type="date"
+               required
+               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+               value={stageDate}
+               onChange={e => setStageDate(e.target.value)}
+             />
+             <p className="text-xs text-slate-400 mt-1">Date when the deal entered this stage</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Value (INR)</label>
@@ -171,6 +198,16 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
                  <option key={rep.id} value={rep.id}>{rep.name}</option>
                ))}
              </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+            <textarea 
+              placeholder="Add initial notes or key details..."
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none h-24"
+              value={formData.notes}
+              onChange={e => setFormData({...formData, notes: e.target.value})}
+            />
           </div>
 
           <div className="pt-4 flex items-center gap-3">

@@ -26,6 +26,8 @@ export interface Deal {
   closeDate: string; // ISO Date string
   probability: number; // 0-100
   lastUpdated: string;
+  stageHistory?: Record<string, string>; // Map of Stage -> ISO Date String
+  notes?: string;
 }
 
 export interface SalesRep {

@@ -55,7 +55,9 @@ export const INITIAL_DEALS: Deal[] = [
     assignedRepId: 'george',
     closeDate: '2023-11-15',
     probability: 100,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
+    stageHistory: { [DealStage.CLOSED_WON]: '2023-11-15T10:00:00Z' },
+    notes: 'Key stakeholder loved the demo. Closure expedited.'
   },
   {
     id: 'd-2',
@@ -67,7 +69,9 @@ export const INITIAL_DEALS: Deal[] = [
     assignedRepId: 'hari',
     closeDate: '2023-11-20',
     probability: 80,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
+    stageHistory: { [DealStage.NEGOTIATION]: '2023-11-10T14:30:00Z' },
+    notes: 'Pricing negotiation in final stages. CTO approval pending.'
   },
   {
     id: 'd-3',
@@ -79,7 +83,9 @@ export const INITIAL_DEALS: Deal[] = [
     assignedRepId: 'team-dva',
     closeDate: '2023-12-01',
     probability: 60,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
+    stageHistory: { [DealStage.PROPOSAL]: '2023-10-25T09:15:00Z' },
+    notes: 'Competitor offering lower rates. Need to emphasize support value.'
   },
   {
     id: 'd-4',
@@ -91,7 +97,9 @@ export const INITIAL_DEALS: Deal[] = [
     assignedRepId: 'team-la',
     closeDate: '2024-01-15',
     probability: 20,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
+    stageHistory: { [DealStage.LEAD]: '2023-11-01T11:00:00Z' },
+    notes: 'Initial contact made via LinkedIn. Interested in Generative AI POC.'
   },
   {
     id: 'd-5',
@@ -103,7 +111,8 @@ export const INITIAL_DEALS: Deal[] = [
     assignedRepId: 'team-snv',
     closeDate: '2023-10-01',
     probability: 100,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
+    stageHistory: { [DealStage.CLOSED_WON]: '2023-10-01T16:45:00Z' }
   },
   {
     id: 'd-6',
@@ -115,7 +124,8 @@ export const INITIAL_DEALS: Deal[] = [
     assignedRepId: 'george',
     closeDate: '2023-12-10',
     probability: 75,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
+    stageHistory: { [DealStage.NEGOTIATION]: '2023-11-05T13:20:00Z' }
   },
   {
     id: 'd-7',
@@ -127,7 +137,8 @@ export const INITIAL_DEALS: Deal[] = [
     assignedRepId: 'hari',
     closeDate: '2024-02-15',
     probability: 50,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
+    stageHistory: { [DealStage.PROPOSAL]: '2023-11-12T10:00:00Z' }
   }
 ];
 

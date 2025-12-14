@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { Deal, DealStage } from '../types';
-import { MoreHorizontal, ArrowRight, AlertCircle, Sparkles, Pencil } from 'lucide-react';
+import { MoreHorizontal, ArrowRight, AlertCircle, Sparkles, Pencil, Calendar, FileText } from 'lucide-react';
 import { suggestNextStep } from '../services/geminiService';
 
 interface DealCardProps {
   deal: Deal;
   onMoveStage: (dealId: string, direction: 'next' | 'prev') => void;
   onEdit: (deal: Deal) => void;
+  onNoteUpdate: (dealId: string, note: string) => void;
 }
 
-export const DealCard: React.FC<DealCardProps> = ({ deal, onMoveStage, onEdit }) => {
+export const DealCard: React.FC<DealCardProps> = ({ deal, onMoveStage, onEdit, onNoteUpdate }) => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(deal.notes || '');
 
   const handleGetInsight = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -21,8 +24,21 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onMoveStage, onEdit })
     setIsAiLoading(false);
   };
 
+  const handleNoteBlur = () => {
+    setIsEditingNote(false);
+    if (noteDraft !== (deal.notes || '')) {
+      onNoteUpdate(deal.id, noteDraft);
+    }
+  };
+
+  const handleNoteKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        e.currentTarget.blur();
+    }
+  };
+
   const formatINR = (val: number) => {
-    // Basic formatting for card view
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
     if (val >= 100000) return `₹${(val / 100000).toFixed(1)} L`;
     return new Intl.NumberFormat('en-IN', {
@@ -31,6 +47,10 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onMoveStage, onEdit })
       maximumFractionDigits: 0,
     }).format(val);
   };
+
+  const currentStageDate = deal.stageHistory?.[deal.stage] 
+    ? new Date(deal.stageHistory[deal.stage]).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    : null;
 
   return (
     <div 
@@ -60,6 +80,44 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onMoveStage, onEdit })
         }`}>
           {deal.probability}%
         </span>
+      </div>
+
+      {currentStageDate && (
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-3 bg-slate-50 px-2 py-1 rounded w-fit">
+           <Calendar size={10} />
+           <span>In stage since {currentStageDate}</span>
+        </div>
+      )}
+
+      {/* Editable Notes Section */}
+      <div 
+        className="mb-3 group/note"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-1 mb-1 text-[10px] uppercase font-semibold text-slate-400">
+            <FileText size={10} /> Notes
+        </div>
+        {isEditingNote ? (
+            <textarea
+                className="w-full text-xs text-slate-700 bg-yellow-50 border border-yellow-200 rounded p-2 focus:ring-1 focus:ring-yellow-400 outline-none resize-none min-h-[60px]"
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                onBlur={handleNoteBlur}
+                onKeyDown={handleNoteKeyDown}
+                autoFocus
+                placeholder="Add a note..."
+            />
+        ) : (
+            <div 
+                onClick={() => {
+                    setIsEditingNote(true);
+                    setNoteDraft(deal.notes || '');
+                }}
+                className={`text-xs p-2 rounded min-h-[28px] cursor-text transition-colors ${deal.notes ? 'bg-slate-50 text-slate-600 hover:bg-slate-100' : 'text-slate-400 italic bg-slate-50/50 hover:bg-slate-50'}`}
+            >
+                {deal.notes || "Click to add notes..."}
+            </div>
+        )}
       </div>
 
       {aiSuggestion && (

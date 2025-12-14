@@ -27,7 +27,10 @@ import {
   Trophy,
   BarChart2,
   Search,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  Database,
+  Filter,
+  Calendar
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -46,23 +49,60 @@ import { DealCard } from './components/DealCard';
 import { IncentiveCalculator } from './components/IncentiveCalculator';
 import { AddDealModal } from './components/AddDealModal';
 import { analyzePipeline } from './services/geminiService';
+import { api } from './services/api';
+import { supabase, isSupabaseConfigured } from './services/supabase';
 
 const App = () => {
   // State
-  const [deals, setDeals] = useState<Deal[]>(INITIAL_DEALS);
-  const [reps, setReps] = useState<SalesRep[]>(MOCK_REPS);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [reps, setReps] = useState<SalesRep[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+
   const [activeTab, setActiveTab] = useState<'dashboard' | 'pipeline' | 'incentives' | 'customers'>('dashboard');
-  const [selectedRepId, setSelectedRepId] = useState<string>(MOCK_REPS[0].id);
+  const [selectedRepId, setSelectedRepId] = useState<string>('');
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  
+  // Pipeline Filters
+  const [pipelineSearchTerm, setPipelineSearchTerm] = useState('');
+  const [pipelineCategoryFilter, setPipelineCategoryFilter] = useState<string>('all');
+  const [pipelineRepFilter, setPipelineRepFilter] = useState<string>('all');
+
+  // Customer Filters
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerStageFilter, setCustomerStageFilter] = useState<string>('all');
+  const [customerCategoryFilter, setCustomerCategoryFilter] = useState<string>('all');
+  const [customerRepFilter, setCustomerRepFilter] = useState<string>('all');
+
+  // Initial Data Load
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoadingData(true);
+      try {
+        const [repsData, dealsData] = await Promise.all([
+          api.fetchReps(),
+          api.fetchDeals()
+        ]);
+        setReps(repsData);
+        setDeals(dealsData);
+        if (repsData.length > 0 && !selectedRepId) {
+          setSelectedRepId(repsData[0].id);
+        }
+      } catch (error) {
+        console.error("Failed to load data", error);
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+    loadData();
+  }, []);
 
   // Derived State
   const selectedRep = useMemo(() => 
-    reps.find(r => r.id === selectedRepId) || reps[0], 
+    reps.find(r => r.id === selectedRepId) || reps[0] || MOCK_REPS[0], 
   [reps, selectedRepId]);
 
   // Helper formatter for INR
@@ -141,38 +181,89 @@ const App = () => {
     }).sort((a, b) => b.achievement - a.achievement); // Rank by achievement
   }, [deals, reps]);
 
+  // Filtered Deals for Pipeline View
+  const filteredPipelineDeals = useMemo(() => {
+    return deals.filter(deal => {
+      const term = pipelineSearchTerm.toLowerCase();
+      const matchesSearch = (
+        deal.customerName.toLowerCase().includes(term) ||
+        deal.title.toLowerCase().includes(term) ||
+        (deal.notes && deal.notes.toLowerCase().includes(term))
+      );
+
+      const matchesCategory = pipelineCategoryFilter === 'all' || deal.category === pipelineCategoryFilter;
+      const matchesRep = pipelineRepFilter === 'all' || deal.assignedRepId === pipelineRepFilter;
+
+      return matchesSearch && matchesCategory && matchesRep;
+    });
+  }, [deals, pipelineSearchTerm, pipelineCategoryFilter, pipelineRepFilter]);
+
   // Filtered Deals for Customer Search
   const filteredCustomerDeals = useMemo(() => {
     return deals.filter(deal => {
       const term = customerSearchTerm.toLowerCase();
-      return (
+      const matchesSearch = (
         deal.customerName.toLowerCase().includes(term) ||
         deal.title.toLowerCase().includes(term) ||
         deal.category.toLowerCase().includes(term)
       );
+
+      const matchesStage = customerStageFilter === 'all' || deal.stage === customerStageFilter;
+      const matchesCategory = customerCategoryFilter === 'all' || deal.category === customerCategoryFilter;
+      const matchesRep = customerRepFilter === 'all' || deal.assignedRepId === customerRepFilter;
+
+      return matchesSearch && matchesStage && matchesCategory && matchesRep;
     }).sort((a,b) => b.value - a.value);
-  }, [deals, customerSearchTerm]);
+  }, [deals, customerSearchTerm, customerStageFilter, customerCategoryFilter, customerRepFilter]);
 
   // Handlers
-  const handleUpdateQuota = (repId: string, newQuota: number) => {
-    setReps(prev => prev.map(r => 
-      r.id === repId ? { ...r, quota: newQuota } : r
-    ));
+  const handleUpdateQuota = async (repId: string, newQuota: number) => {
+    // Optimistic Update
+    setReps(prev => prev.map(r => r.id === repId ? { ...r, quota: newQuota } : r));
+    
+    // API Call
+    try {
+      await api.updateRepQuota(repId, newQuota);
+    } catch (e) {
+      // Revert if failed
+      console.error("Failed to update quota", e);
+      const originalReps = await api.fetchReps();
+      setReps(originalReps);
+    }
   };
 
-  const handleMoveStage = (dealId: string, direction: 'next' | 'prev') => {
-    setDeals(prevDeals => prevDeals.map(deal => {
-      if (deal.id !== dealId) return deal;
-      
-      const stages = Object.values(DealStage);
-      const currentIndex = stages.indexOf(deal.stage);
-      let newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-      
-      if (newIndex < 0) newIndex = 0;
-      if (newIndex >= stages.length) newIndex = stages.length - 1;
+  const handleMoveStage = async (dealId: string, direction: 'next' | 'prev') => {
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) return;
 
-      return { ...deal, stage: stages[newIndex], lastUpdated: new Date().toISOString() };
-    }));
+    const stages = Object.values(DealStage);
+    const currentIndex = stages.indexOf(deal.stage);
+    let newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+    if (newIndex < 0) newIndex = 0;
+    if (newIndex >= stages.length) newIndex = stages.length - 1;
+
+    const newStage = stages[newIndex];
+    const timestamp = new Date().toISOString();
+    
+    const updatedDeal = { 
+        ...deal, 
+        stage: newStage, 
+        lastUpdated: timestamp,
+        stageHistory: {
+            ...deal.stageHistory,
+            [newStage]: timestamp
+        }
+    };
+
+    // Optimistic Update
+    setDeals(prev => prev.map(d => d.id === dealId ? updatedDeal : d));
+
+    try {
+      await api.updateDeal(updatedDeal);
+    } catch (e) {
+      console.error("Failed to move stage", e);
+      setDeals(prev => prev.map(d => d.id === dealId ? deal : d)); // Revert
+    }
   };
 
   const handleEditDeal = (deal: Deal) => {
@@ -180,27 +271,99 @@ const App = () => {
     setIsAddModalOpen(true);
   };
 
-  const handleDeleteDeal = (dealId: string) => {
+  const handleDeleteDeal = async (dealId: string) => {
+    // Optimistic
+    const previousDeals = [...deals];
     setDeals(prev => prev.filter(d => d.id !== dealId));
     setIsAddModalOpen(false);
     setEditingDeal(null);
+
+    try {
+      await api.deleteDeal(dealId);
+    } catch (e) {
+      setDeals(previousDeals); // Revert
+      alert("Failed to delete deal");
+    }
   };
 
-  const handleSaveDeal = (dealData: Omit<Deal, 'id' | 'lastUpdated' | 'closeDate'>) => {
+  const handleNoteUpdate = async (dealId: string, newNotes: string) => {
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) return;
+
+    const updatedDeal = { ...deal, notes: newNotes, lastUpdated: new Date().toISOString() };
+    
+    // Optimistic Update
+    setDeals(prev => prev.map(d => d.id === dealId ? updatedDeal : d));
+    
+    try {
+        await api.updateDeal(updatedDeal);
+    } catch (e) {
+        console.error("Failed to update note", e);
+        // Silently revert or show toast - reverting for now
+        setDeals(prev => prev.map(d => d.id === dealId ? deal : d));
+    }
+  };
+
+  const handleSaveDeal = async (dealData: Omit<Deal, 'id' | 'lastUpdated' | 'closeDate'>, stageDate?: string) => {
+    // If a specific date is provided (YYYY-MM-DD from modal), append time and use it.
+    // Otherwise use current timestamp.
+    const specificDate = stageDate 
+        ? new Date(stageDate + 'T12:00:00Z').toISOString() // Add noon time to avoid timezone shifts affecting date
+        : new Date().toISOString();
+
+    const currentTimestamp = new Date().toISOString();
+
     if (editingDeal) {
-      setDeals(prev => prev.map(d => 
-        d.id === editingDeal.id 
-          ? { ...d, ...dealData, lastUpdated: new Date().toISOString() } 
-          : d
-      ));
-    } else {
-      const newDeal: Deal = {
-        ...dealData,
-        id: `deal-${Date.now()}`,
-        lastUpdated: new Date().toISOString(),
-        closeDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      // Use the provided date for the new stage entry/update
+      const updatedHistory = { 
+          ...(editingDeal.stageHistory || {}),
+          [dealData.stage]: specificDate
       };
-      setDeals(prev => [...prev, newDeal]);
+
+      const updatedDeal = { 
+          ...editingDeal, 
+          ...dealData, 
+          lastUpdated: currentTimestamp,
+          stageHistory: updatedHistory
+      };
+      
+      // Optimistic
+      const previousDeals = [...deals];
+      setDeals(prev => prev.map(d => d.id === editingDeal.id ? updatedDeal : d));
+      
+      try {
+        await api.updateDeal(updatedDeal);
+      } catch (e) {
+        setDeals(previousDeals);
+        alert("Failed to update deal");
+      }
+    } else {
+      const tempId = `temp-${Date.now()}`;
+      const newDealPayload = {
+        ...dealData,
+        closeDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        stageHistory: {
+            [dealData.stage]: specificDate
+        }
+      };
+      
+      // Temporary UI update
+      const tempDeal: Deal = {
+        ...newDealPayload,
+        id: tempId,
+        lastUpdated: currentTimestamp
+      };
+      setDeals(prev => [...prev, tempDeal]);
+
+      try {
+        const savedDeal = await api.createDeal(newDealPayload);
+        if (savedDeal) {
+            setDeals(prev => prev.map(d => d.id === tempId ? savedDeal : d));
+        }
+      } catch (e) {
+        setDeals(prev => prev.filter(d => d.id !== tempId));
+        alert("Failed to create deal");
+      }
     }
   };
 
@@ -215,53 +378,69 @@ const App = () => {
     setIsLiveMode(!isLiveMode);
   };
 
-  // Live Mode Simulation
+  // Live Mode: Real-time (Supabase) or Simulation
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
+    let channel: any;
 
     if (isLiveMode) {
-      interval = setInterval(() => {
-        const random = Math.random();
-        
-        if (random < 0.3) {
-          setDeals(prev => {
-             const activeDeals = prev.filter(d => d.stage !== DealStage.CLOSED_WON && d.stage !== DealStage.CLOSED_LOST);
-             if (activeDeals.length === 0) return prev;
-             
-             const randomDeal = activeDeals[Math.floor(Math.random() * activeDeals.length)];
-             if (editingDeal && randomDeal.id === editingDeal.id) return prev;
-
-             const updatedDeals = prev.map(d => {
-               if (d.id === randomDeal.id) {
-                 const change = Math.random() > 0.5 ? 5 : -5;
-                 const newProb = Math.min(Math.max(d.probability + change, 0), 100);
-                 return { ...d, probability: newProb, lastUpdated: new Date().toISOString() };
-               }
-               return d;
-             });
-             return updatedDeals;
-          });
-        } 
-        else if (random > 0.9) {
-          const newLead: Deal = {
-            id: `lead-${Date.now()}`,
-            customerName: `New Prospect ${Math.floor(Math.random() * 1000)}`,
-            title: 'Incoming Inquiry',
-            value: (Math.floor(Math.random() * 50) + 5) * 1000000,
-            stage: DealStage.LEAD,
-            category: DealCategory.SOFTWARE, // Default for generated leads
-            assignedRepId: reps[Math.floor(Math.random() * reps.length)].id,
-            closeDate: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
-            probability: 10,
-            lastUpdated: new Date().toISOString()
-          };
-          setDeals(prev => [...prev, newLead]);
-        }
-      }, 3000);
+      if (supabase) {
+        // Real-time Supabase Subscription
+        channel = supabase
+          .channel('realtime-deals')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'deals' },
+            (payload) => {
+              // Refresh data on any change for consistency
+              api.fetchDeals().then(setDeals);
+            }
+          )
+          .subscribe();
+      } else {
+        // Simulation Mode (Demo)
+        interval = setInterval(() => {
+          const random = Math.random();
+          
+          if (random < 0.3) {
+            setDeals(prev => {
+               const activeDeals = prev.filter(d => d.stage !== DealStage.CLOSED_WON && d.stage !== DealStage.CLOSED_LOST);
+               if (activeDeals.length === 0) return prev;
+               
+               const randomDeal = activeDeals[Math.floor(Math.random() * activeDeals.length)];
+               if (editingDeal && randomDeal.id === editingDeal.id) return prev;
+  
+               const updatedDeals = prev.map(d => {
+                 if (d.id === randomDeal.id) {
+                   const change = Math.random() > 0.5 ? 5 : -5;
+                   const newProb = Math.min(Math.max(d.probability + change, 0), 100);
+                   return { ...d, probability: newProb, lastUpdated: new Date().toISOString() };
+                 }
+                 return d;
+               });
+               return updatedDeals;
+            });
+          } 
+        }, 3000);
+      }
     }
 
-    return () => clearInterval(interval);
-  }, [isLiveMode, reps, editingDeal]);
+    return () => {
+      if (interval) clearInterval(interval);
+      if (channel && supabase) supabase.removeChannel(channel);
+    };
+  }, [isLiveMode, editingDeal]);
+
+  if (isLoadingData) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-medium">Loading SalesFlow...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -272,6 +451,15 @@ const App = () => {
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <TrendingUp className="text-blue-500" /> SalesFlow
           </h1>
+          {isSupabaseConfigured ? (
+             <span className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+               <Database size={10} /> Connected
+             </span>
+          ) : (
+             <span className="text-[10px] text-amber-400 font-mono mt-1 flex items-center gap-1">
+               <Database size={10} /> Demo Mode
+             </span>
+          )}
         </div>
         
         <nav className="flex-1 px-4 space-y-2">
@@ -314,7 +502,7 @@ const App = () => {
              </div>
              <div className="flex items-center gap-2 text-xs">
                <Activity size={14} className={isLiveMode ? "text-emerald-400 animate-pulse" : "text-slate-500"} />
-               {isLiveMode ? "Receiving updates..." : "Feed paused"}
+               {isLiveMode ? (supabase ? "Real-time Sync" : "Simulating Updates") : "Feed paused"}
              </div>
            </div>
         </div>
@@ -551,69 +739,164 @@ const App = () => {
           )}
 
           {activeTab === 'pipeline' && (
-            <div className="h-full overflow-x-auto">
-              <div className="flex gap-4 min-w-max h-full pb-4">
-                {STAGE_CONFIG.map(stage => (
-                  <div key={stage.id} className="w-80 flex flex-col bg-slate-100 rounded-xl max-h-full">
-                    <div className={`p-4 border-b border-slate-200 rounded-t-xl sticky top-0 bg-slate-100 z-10 flex justify-between items-center`}>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${stage.color.split(' ')[0].replace('bg-', 'bg-')}`} />
-                        <h3 className="font-semibold text-slate-700">{stage.label}</h3>
-                      </div>
-                      <span className="text-xs font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">
-                        {deals.filter(d => d.stage === stage.id).length}
-                      </span>
-                    </div>
-                    
-                    <div className="p-3 space-y-3 overflow-y-auto scrollbar-hide flex-1">
-                      {deals
-                        .filter(deal => deal.stage === stage.id)
-                        .map(deal => (
-                          <DealCard 
-                            key={deal.id} 
-                            deal={deal} 
-                            onMoveStage={handleMoveStage}
-                            onEdit={handleEditDeal}
-                            onUpdate={(updatedDeal) => {
-                                setDeals(prev => prev.map(d => d.id === updatedDeal.id ? updatedDeal : d));
-                            }}
-                          />
-                        ))
-                      }
-                      {deals.filter(d => d.stage === stage.id).length === 0 && (
-                        <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-lg">
-                           <p className="text-xs text-slate-400">No deals</p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="p-3 text-center border-t border-slate-200">
-                       <p className="text-xs font-semibold text-slate-500">
-                         Total: {formatINR(deals.filter(d => d.stage === stage.id).reduce((s, d) => s + d.value, 0))}
-                       </p>
-                    </div>
+            <div className="h-full flex flex-col">
+              {/* Pipeline Filters */}
+              <div className="bg-white border-b border-slate-200 px-6 py-3 flex flex-col lg:flex-row gap-3 items-start lg:items-center">
+                  <div className="relative flex-1 w-full lg:w-auto">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Search deals, notes..."
+                      value={pipelineSearchTerm}
+                      onChange={(e) => setPipelineSearchTerm(e.target.value)}
+                      className="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full bg-slate-50 transition-shadow shadow-sm"
+                    />
                   </div>
-                ))}
+                  <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+                      <select 
+                        value={pipelineCategoryFilter}
+                        onChange={(e) => setPipelineCategoryFilter(e.target.value)}
+                        className="px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer hover:border-blue-300 transition-colors"
+                      >
+                        <option value="all">All Categories</option>
+                        {Object.values(DealCategory).map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+
+                      <select 
+                        value={pipelineRepFilter}
+                        onChange={(e) => setPipelineRepFilter(e.target.value)}
+                        className="px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer hover:border-blue-300 transition-colors"
+                      >
+                        <option value="all">All Reps</option>
+                        {reps.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      </select>
+                      
+                      {(pipelineCategoryFilter !== 'all' || pipelineRepFilter !== 'all' || pipelineSearchTerm) && (
+                        <button 
+                          onClick={() => {
+                            setPipelineCategoryFilter('all');
+                            setPipelineRepFilter('all');
+                            setPipelineSearchTerm('');
+                          }}
+                          className="text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors font-medium ml-auto lg:ml-0"
+                        >
+                          Reset
+                        </button>
+                      )}
+                  </div>
+              </div>
+
+              <div className="flex-1 overflow-x-auto p-4">
+                <div className="flex gap-4 min-w-max h-full">
+                  {STAGE_CONFIG.map(stage => (
+                    <div key={stage.id} className="w-80 flex flex-col bg-slate-100 rounded-xl max-h-full">
+                      <div className={`p-4 border-b border-slate-200 rounded-t-xl sticky top-0 bg-slate-100 z-10 flex justify-between items-center`}>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${stage.color.split(' ')[0].replace('bg-', 'bg-')}`} />
+                          <h3 className="font-semibold text-slate-700">{stage.label}</h3>
+                        </div>
+                        <span className="text-xs font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">
+                          {filteredPipelineDeals.filter(d => d.stage === stage.id).length}
+                        </span>
+                      </div>
+                      
+                      <div className="p-3 space-y-3 overflow-y-auto scrollbar-hide flex-1">
+                        {filteredPipelineDeals
+                          .filter(deal => deal.stage === stage.id)
+                          .map(deal => (
+                            <DealCard 
+                              key={deal.id} 
+                              deal={deal} 
+                              onMoveStage={handleMoveStage}
+                              onEdit={handleEditDeal}
+                              onNoteUpdate={handleNoteUpdate}
+                            />
+                          ))
+                        }
+                        {filteredPipelineDeals.filter(d => d.stage === stage.id).length === 0 && (
+                          <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-lg">
+                             <p className="text-xs text-slate-400">No deals</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="p-3 text-center border-t border-slate-200">
+                         <p className="text-xs font-semibold text-slate-500">
+                           Total: {formatINR(filteredPipelineDeals.filter(d => d.stage === stage.id).reduce((s, d) => s + d.value, 0))}
+                         </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
           {activeTab === 'customers' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-               <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                 <div>
-                   <h3 className="text-lg font-bold text-slate-800">Customer & Deal Projection</h3>
-                   <p className="text-sm text-slate-500">Overview of all active and closed deals with projected weighted revenue.</p>
+               <div className="p-6 border-b border-slate-200 flex flex-col gap-4">
+                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800">Customer & Deal Projection</h3>
+                      <p className="text-sm text-slate-500">Overview of all active and closed deals with projected weighted revenue.</p>
+                    </div>
                  </div>
-                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input 
-                      type="text" 
-                      placeholder="Search customers, projects..."
-                      value={customerSearchTerm}
-                      onChange={(e) => setCustomerSearchTerm(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-64"
-                    />
+                 
+                 {/* Filters Bar */}
+                 <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <div className="relative flex-1 w-full lg:w-auto">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input 
+                        type="text" 
+                        placeholder="Search customers, projects..."
+                        value={customerSearchTerm}
+                        onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                        className="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full bg-white transition-shadow shadow-sm"
+                      />
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+                       <select 
+                          value={customerStageFilter}
+                          onChange={(e) => setCustomerStageFilter(e.target.value)}
+                          className="px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer hover:border-blue-300 transition-colors"
+                        >
+                          <option value="all">All Stages</option>
+                          {Object.values(DealStage).map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+
+                        <select 
+                          value={customerCategoryFilter}
+                          onChange={(e) => setCustomerCategoryFilter(e.target.value)}
+                          className="px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer hover:border-blue-300 transition-colors"
+                        >
+                          <option value="all">All Categories</option>
+                          {Object.values(DealCategory).map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+
+                        <select 
+                          value={customerRepFilter}
+                          onChange={(e) => setCustomerRepFilter(e.target.value)}
+                          className="px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer hover:border-blue-300 transition-colors"
+                        >
+                          <option value="all">All Reps</option>
+                          {reps.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        </select>
+
+                        {(customerStageFilter !== 'all' || customerCategoryFilter !== 'all' || customerRepFilter !== 'all' || customerSearchTerm) && (
+                          <button 
+                            onClick={() => {
+                              setCustomerStageFilter('all');
+                              setCustomerCategoryFilter('all');
+                              setCustomerRepFilter('all');
+                              setCustomerSearchTerm('');
+                            }}
+                            className="text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors font-medium ml-auto lg:ml-0"
+                          >
+                            Reset
+                          </button>
+                        )}
+                    </div>
                  </div>
                </div>
                <div className="overflow-x-auto">
@@ -655,13 +938,21 @@ const App = () => {
                             </div>
                          </td>
                          <td className="px-6 py-4">
-                           <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
-                             deal.stage === DealStage.CLOSED_WON ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                             deal.stage === DealStage.CLOSED_LOST ? 'bg-red-50 text-red-700 border-red-100' :
-                             'bg-blue-50 text-blue-700 border-blue-100'
-                           }`}>
-                             {deal.stage}
-                           </span>
+                           <div className="flex flex-col items-start gap-1">
+                               <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                                 deal.stage === DealStage.CLOSED_WON ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                 deal.stage === DealStage.CLOSED_LOST ? 'bg-red-50 text-red-700 border-red-100' :
+                                 'bg-blue-50 text-blue-700 border-blue-100'
+                               }`}>
+                                 {deal.stage}
+                               </span>
+                               {deal.stageHistory?.[deal.stage] && (
+                                   <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                                     <Calendar size={10} />
+                                     {new Date(deal.stageHistory[deal.stage]).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                   </span>
+                               )}
+                           </div>
                          </td>
                          <td className="px-6 py-4 text-right font-medium text-slate-700">
                            {formatINR(deal.value)}
@@ -703,7 +994,21 @@ const App = () => {
                  </table>
                  {filteredCustomerDeals.length === 0 && (
                    <div className="text-center py-12 text-slate-500">
-                     No customers found matching "{customerSearchTerm}"
+                     <div className="flex flex-col items-center gap-2">
+                        <Filter className="text-slate-300 mb-2" size={32} />
+                        <p>No customers found matching your filters.</p>
+                        <button 
+                            onClick={() => {
+                              setCustomerStageFilter('all');
+                              setCustomerCategoryFilter('all');
+                              setCustomerRepFilter('all');
+                              setCustomerSearchTerm('');
+                            }}
+                            className="text-blue-600 hover:underline text-sm"
+                        >
+                            Clear all filters
+                        </button>
+                     </div>
                    </div>
                  )}
                </div>
