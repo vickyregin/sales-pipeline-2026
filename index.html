@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- CSP: Allow unsafe-eval for Tailwind CDN, and whitelists for external APIs -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdn.tailwindcss.com https://esm.sh https://fonts.googleapis.com https://fonts.gstatic.com https://*.supabase.co https://*.supabase.in https://generativelanguage.googleapis.com;">
+
     <title>SalesFlow AI</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
     
