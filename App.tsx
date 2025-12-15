@@ -61,7 +61,7 @@ const App = () => {
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'pipeline' | 'incentives' | 'customers'>('dashboard');
   const [selectedRepId, setSelectedRepId] = useState<string>('');
-  const [isLiveMode, setIsLiveMode] = useState(false);
+  const [isLiveMode, setIsLiveMode] = useState(true); // Default to true for better demo
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -404,7 +404,7 @@ const App = () => {
         interval = setInterval(() => {
           const random = Math.random();
           
-          if (random < 0.3) {
+          if (random < 0.4) { // Increased frequency for demo
             setDeals(prev => {
                const activeDeals = prev.filter(d => d.stage !== DealStage.CLOSED_WON && d.stage !== DealStage.CLOSED_LOST);
                if (activeDeals.length === 0) return prev;
@@ -414,7 +414,8 @@ const App = () => {
   
                const updatedDeals = prev.map(d => {
                  if (d.id === randomDeal.id) {
-                   const change = Math.random() > 0.5 ? 5 : -5;
+                   // Simulate small probability changes or value fluctuations
+                   const change = Math.random() > 0.5 ? 2 : -2;
                    const newProb = Math.min(Math.max(d.probability + change, 0), 100);
                    return { ...d, probability: newProb, lastUpdated: new Date().toISOString() };
                  }
@@ -423,7 +424,7 @@ const App = () => {
                return updatedDeals;
             });
           } 
-        }, 3000);
+        }, 2000); // Faster updates
       }
     }
 
