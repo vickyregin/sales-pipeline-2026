@@ -1,4 +1,4 @@
-import { Deal, DealStage, SalesRep, DealCategory } from './types';
+import { Deal, DealStage, SalesRep, DealCategory, BusinessType } from './types';
 
 // 1 Crore = 10,000,000
 const CR = 10000000;
@@ -52,6 +52,7 @@ export const INITIAL_DEALS: Deal[] = [
     value: 0.4 * CR,
     stage: DealStage.CLOSED_WON,
     category: DealCategory.SOFTWARE,
+    businessType: BusinessType.EXISTING,
     assignedRepId: 'george',
     closeDate: '2023-11-15',
     probability: 100,
@@ -66,6 +67,7 @@ export const INITIAL_DEALS: Deal[] = [
     value: 0.8 * CR,
     stage: DealStage.NEGOTIATION,
     category: DealCategory.CLOUD,
+    businessType: BusinessType.NEW,
     assignedRepId: 'hari',
     closeDate: '2023-11-20',
     probability: 80,
@@ -80,6 +82,7 @@ export const INITIAL_DEALS: Deal[] = [
     value: 1.2 * CR,
     stage: DealStage.PROPOSAL,
     category: DealCategory.HARDWARE,
+    businessType: BusinessType.EXISTING,
     assignedRepId: 'team-dva',
     closeDate: '2023-12-01',
     probability: 60,
@@ -94,6 +97,7 @@ export const INITIAL_DEALS: Deal[] = [
     value: 2.5 * CR,
     stage: DealStage.LEAD,
     category: DealCategory.SERVICES,
+    businessType: BusinessType.NEW,
     assignedRepId: 'team-la',
     closeDate: '2024-01-15',
     probability: 20,
@@ -108,6 +112,7 @@ export const INITIAL_DEALS: Deal[] = [
     value: 0.35 * CR,
     stage: DealStage.CLOSED_WON,
     category: DealCategory.CONSULTING,
+    businessType: BusinessType.EXISTING,
     assignedRepId: 'team-snv',
     closeDate: '2023-10-01',
     probability: 100,
@@ -121,6 +126,7 @@ export const INITIAL_DEALS: Deal[] = [
     value: 0.65 * CR,
     stage: DealStage.NEGOTIATION,
     category: DealCategory.CONSULTING,
+    businessType: BusinessType.NEW,
     assignedRepId: 'george',
     closeDate: '2023-12-10',
     probability: 75,
@@ -134,6 +140,7 @@ export const INITIAL_DEALS: Deal[] = [
     value: 1.5 * CR,
     stage: DealStage.PROPOSAL,
     category: DealCategory.HARDWARE,
+    businessType: BusinessType.NEW,
     assignedRepId: 'hari',
     closeDate: '2024-02-15',
     probability: 50,

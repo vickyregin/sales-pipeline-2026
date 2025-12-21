@@ -15,6 +15,11 @@ export enum DealCategory {
   CONSULTING = 'Consulting'
 }
 
+export enum BusinessType {
+  NEW = 'New Business',
+  EXISTING = 'Existing Business'
+}
+
 export interface Deal {
   id: string;
   customerName: string;
@@ -22,6 +27,7 @@ export interface Deal {
   value: number;
   stage: DealStage;
   category: DealCategory;
+  businessType: BusinessType;
   assignedRepId: string;
   closeDate: string; // ISO Date string
   probability: number; // 0-100

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Deal, DealStage } from '../types';
+import { Deal, DealStage, BusinessType } from '../types';
 import { MoreHorizontal, ArrowRight, AlertCircle, Sparkles, Pencil, Calendar, FileText } from 'lucide-react';
 import { suggestNextStep } from '../services/geminiService';
 
@@ -58,9 +58,16 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onMoveStage, onEdit, o
       onClick={() => onEdit(deal)}
     >
       <div className="flex justify-between items-start mb-2">
-        <h4 className="font-semibold text-slate-800 text-sm truncate pr-2">{deal.customerName}</h4>
+        <div className="flex-1 min-w-0 pr-2">
+           <h4 className="font-semibold text-slate-800 text-sm truncate">{deal.customerName}</h4>
+           <div className="flex items-center gap-1.5 mt-0.5">
+             <span className={`text-[9px] font-bold uppercase tracking-tight px-1 rounded ${deal.businessType === BusinessType.NEW ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                {deal.businessType === BusinessType.NEW ? 'New' : 'Existing'}
+             </span>
+           </div>
+        </div>
         <button 
-          className="text-slate-400 hover:text-blue-600 p-1 hover:bg-slate-100 rounded-full transition-colors"
+          className="text-slate-400 hover:text-blue-600 p-1 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0"
           onClick={(e) => {
             e.stopPropagation();
             onEdit(deal);
@@ -73,7 +80,7 @@ export const DealCard: React.FC<DealCardProps> = ({ deal, onMoveStage, onEdit, o
       
       <div className="flex justify-between items-center mb-3">
         <span className="font-bold text-slate-900">{formatINR(deal.value)}</span>
-        <span className={`text-xs px-2 py-1 rounded-full ${
+        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
           deal.probability > 70 ? 'bg-emerald-100 text-emerald-700' :
           deal.probability > 30 ? 'bg-yellow-100 text-yellow-700' :
           'bg-red-100 text-red-700'

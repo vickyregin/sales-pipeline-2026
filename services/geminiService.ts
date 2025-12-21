@@ -42,7 +42,7 @@ export const analyzePipeline = async (deals: Deal[], reps: SalesRep[]): Promise<
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
     return response.text || "No analysis generated.";
@@ -68,7 +68,7 @@ export const suggestNextStep = async (deal: Deal): Promise<string> => {
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-flash-preview',
         contents: prompt,
       });
       return response.text || "Review deal terms.";

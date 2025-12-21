@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase';
-import { Deal, SalesRep, DealStage, DealCategory } from '../types';
+import { Deal, SalesRep, DealStage, DealCategory, BusinessType } from '../types';
 import { INITIAL_DEALS, MOCK_REPS } from '../constants';
 
 // --- Data Mapping (DB Snake_case -> App CamelCase) ---
@@ -11,6 +11,7 @@ const mapDealFromDB = (data: any): Deal => ({
   value: Number(data.value),
   stage: data.stage as DealStage,
   category: data.category as DealCategory,
+  businessType: (data.business_type as BusinessType) || BusinessType.NEW,
   assignedRepId: data.assigned_rep_id,
   closeDate: data.close_date,
   probability: Number(data.probability),
@@ -71,7 +72,7 @@ export const api = {
         id: `local-${Date.now()}`,
         lastUpdated: new Date().toISOString()
       };
-      return Promise.resolve(newDeal);
+      return Promise.resolve(newDeal as Deal);
     }
 
     const dbPayload = {
@@ -80,6 +81,7 @@ export const api = {
       value: deal.value,
       stage: deal.stage,
       category: deal.category,
+      business_type: deal.businessType,
       assigned_rep_id: deal.assignedRepId,
       close_date: deal.closeDate,
       probability: deal.probability,
@@ -111,6 +113,7 @@ export const api = {
       value: deal.value,
       stage: deal.stage,
       category: deal.category,
+      business_type: deal.businessType,
       assigned_rep_id: deal.assignedRepId,
       close_date: deal.closeDate,
       probability: deal.probability,

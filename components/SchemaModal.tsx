@@ -29,11 +29,11 @@ CREATE TABLE IF NOT EXISTS public.deals (
     value NUMERIC DEFAULT 0,
     stage TEXT,
     category TEXT,
+    business_type TEXT DEFAULT 'New Business',
     assigned_rep_id TEXT REFERENCES public.sales_reps(id),
     close_date DATE,
     probability INTEGER,
     last_updated TIMESTAMPTZ DEFAULT NOW(),
-    -- New Fields
     notes TEXT,
     stage_history JSONB DEFAULT '{}'::jsonb
 );
@@ -46,6 +46,9 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='deals' AND column_name='stage_history') THEN
         ALTER TABLE public.deals ADD COLUMN stage_history JSONB DEFAULT '{}'::jsonb;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='deals' AND column_name='business_type') THEN
+        ALTER TABLE public.deals ADD COLUMN business_type TEXT DEFAULT 'New Business';
     END IF;
 END $$;
 
@@ -109,7 +112,7 @@ ON CONFLICT (id) DO NOTHING;
         </div>
 
         <div className="p-4 bg-white border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
-           <span>Updated to include <code>notes</code> and <code>stage_history</code> fields.</span>
+           <span>Updated to include <code>business_type</code> analytics field.</span>
            <button onClick={onClose} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-colors">
              Close
            </button>

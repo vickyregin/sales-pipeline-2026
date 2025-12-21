@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2 } from 'lucide-react';
-import { DealStage, SalesRep, Deal, DealCategory } from '../types';
+import { DealStage, SalesRep, Deal, DealCategory, BusinessType } from '../types';
 
 interface AddDealModalProps {
   isOpen: boolean;
@@ -18,6 +18,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
     value: '', // String to handle empty state better during input
     stage: DealStage.LEAD,
     category: DealCategory.SOFTWARE,
+    businessType: BusinessType.NEW,
     assignedRepId: reps[0]?.id || '',
     probability: 20,
     notes: ''
@@ -35,6 +36,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
           value: initialData.value.toString(),
           stage: initialData.stage,
           category: initialData.category,
+          businessType: initialData.businessType || BusinessType.NEW,
           assignedRepId: initialData.assignedRepId,
           probability: initialData.probability,
           notes: initialData.notes || ''
@@ -55,6 +57,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
           value: '',
           stage: DealStage.LEAD,
           category: DealCategory.SOFTWARE,
+          businessType: BusinessType.NEW,
           assignedRepId: reps[0]?.id || '',
           probability: 20,
           notes: ''
@@ -135,6 +138,21 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
                 </select>
              </div>
              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Business Type</label>
+                <select 
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
+                  value={formData.businessType}
+                  onChange={e => setFormData({...formData, businessType: e.target.value as BusinessType})}
+                >
+                  {Object.values(BusinessType).map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Stage</label>
                 <select 
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
@@ -146,18 +164,16 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
                   ))}
                 </select>
              </div>
-          </div>
-
-          <div>
-             <label className="block text-sm font-medium text-slate-700 mb-1">Stage Date</label>
-             <input 
-               type="date"
-               required
-               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-               value={stageDate}
-               onChange={e => setStageDate(e.target.value)}
-             />
-             <p className="text-xs text-slate-400 mt-1">Date when the deal entered this stage</p>
+             <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Stage Date</label>
+                <input 
+                  type="date"
+                  required
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  value={stageDate}
+                  onChange={e => setStageDate(e.target.value)}
+                />
+             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -178,7 +194,7 @@ export const AddDealModal: React.FC<AddDealModalProps> = ({ isOpen, onClose, onS
                <input 
                 required
                 type="number" 
-                min="0"
+                min="0" 
                 max="100"
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 value={formData.probability}
